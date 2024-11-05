@@ -1,4 +1,4 @@
-# Bambu Auth MFA and Verification authentication example
+# Bambu Labs Auth MFA and Verification authentication example
 
 This test harness will give you an idea how to login to the Bambu Labs API via MFA (TFA) and when they require the user to respond to verification codes sent to their email. 
 
