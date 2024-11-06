@@ -2,7 +2,6 @@ import requests
 import json
 import certifi
 import cloudscraper
-import json
 
 # Prompt the user for their Bambu Lab username and password
 bambuUsername = input("Enter your Bambu Lab username: ")
