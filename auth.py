@@ -47,7 +47,7 @@ if not auth_json.get("success"):
     }
 
     # ---------------------------------------
-    # User is using MFA (TFA)
+    # User is using verify code
     #----------------------------------------
     if auth_json.get("loginType") == "verifyCode":
         send_code_response = scraper.post(
