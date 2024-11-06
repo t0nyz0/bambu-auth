@@ -1,20 +1,25 @@
 import requests
 import json
+import certifi
+import cloudscraper
+import json
 
 # Prompt the user for their Bambu Lab username and password
 bambuUsername = input("Enter your Bambu Lab username: ")
 bambuPassword = input("Enter your Bambu Lab password: ")
 
 # Define the User-Agent and other common headers
-user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
 headers = {
     "Content-Type": "application/json",
-    "User-Agent": user_agent,
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Origin": "https://bambulab.com",
-    "Referer": "https://bambulab.com/"
+    "User-Agent": user_agent
 }
+
+# Remove the hard-coded cookie, because this is annoying with testing
+headers.pop("Cookie", None)
+
+# cloudscraper session
+scraper = cloudscraper.create_scraper()
 
 # Perform the login request with custom headers
 auth_payload = {
@@ -22,10 +27,13 @@ auth_payload = {
     "password": bambuPassword,
     "apiError": ""
 }
-auth_response = requests.post("https://bambulab.com/api/sign-in/form", headers=headers, json=auth_payload)
 
-# Print the auth response for debugging
-print("Step 1. Auth login response:", auth_response.text)
+auth_response = scraper.post(
+    "https://bambulab.com/api/sign-in/form",
+    headers=headers,
+    json=auth_payload,
+    verify=certifi.where()
+)
 
 # Check if authentication was successful
 auth_json = auth_response.json()
@@ -39,10 +47,14 @@ if not auth_json.get("success"):
     }
 
     # ---------------------------------------
-    # User is being asked to verify a code
+    # User is using MFA (TFA)
     #----------------------------------------
     if auth_json.get("loginType") == "verifyCode":
-        send_code_response = requests.post("https://api.bambulab.com/v1/user-service/user/sendemail/code", headers=headers, json=send_code_payload)
+        send_code_response = scraper.post(
+            "https://api.bambulab.com/v1/user-service/user/sendemail/code",
+            headers=headers,
+            json=send_code_payload
+        )
         if send_code_response.status_code == 200:
             print("Verification code sent successfully. Check your email.")
         else:
@@ -55,7 +67,12 @@ if not auth_json.get("success"):
             "account": bambuUsername,
             "code": verify_code
         }
-        api_response = requests.post("https://api.bambulab.com/v1/user-service/user/login", headers=headers, json=verify_payload)
+        api_response = scraper.post(
+            "https://api.bambulab.com/v1/user-service/user/login",
+            headers=headers,
+            json=verify_payload,
+            verify=certifi.where()
+        )
         print("Step 2 - API verify code response:", api_response.text)
 
         api_token = api_response.json()
@@ -77,7 +94,12 @@ if not auth_json.get("success"):
             "tfaCode": tfa_code
         }
         print("payload: ", verify_payload)
-        api2_response = requests.post("https://bambulab.com/api-sign-in/tfa", headers=headers, json=verify_payload)
+        api2_response = scraper.post(
+            "https://bambulab.com/api/sign-in/tfa",
+            headers=headers,
+            json=verify_payload,
+            verify=certifi.where()
+        )
         print("Step 2 - API MFA response:", api2_response.text)
 
         cookies = api2_response.cookies.get_dict()
@@ -90,6 +112,10 @@ if not auth_json.get("success"):
             print("Failed to extract token")
             exit(1)
 
+    else:
+        print("Unknown loginType:", auth_json.get("loginType"))
+        exit(1)
+
 else:
     # If authentication was successful in the first attempt, get the token from the JSON response
     token = auth_json.get("accessToken")
@@ -100,7 +126,10 @@ if not token:
 
 # Perform the API request to fetch the image with custom headers
 headers["Authorization"] = f"Bearer {token}"
-api_response = requests.get("https://api.bambulab.com/v1/user-service/my/tasks", headers=headers)
+api_response = scraper.get(
+    "https://api.bambulab.com/v1/user-service/my/tasks",
+    headers=headers
+)
 
 # Print the API response for debugging
 print("API to fetch info:", api_response.text)
@@ -132,3 +161,5 @@ if api_json:
     print("Device Name:", device_name)
     print("Device Model:", device_model)
     print("Bed Type:", bed_type)
+else:
+    print("Failed to parse API response.")
